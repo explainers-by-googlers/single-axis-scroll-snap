@@ -1,185 +1,77 @@
-# Explainer for the TODO API
+# Explainer: Scroll Snap for Single-Axis Scroll Containers
 
-**Instructions for the explainer author: Search for "todo" in this repository and update all the
-instances as appropriate. For the instances in `index.bs`, update the repository name, but you can
-leave the rest until you start the specification. Then delete the TODOs and this block of text.**
-
-This proposal is an early design sketch by [TODO: team] to describe the problem below and solicit
-feedback on the proposed solution. It has not been approved to ship in Chrome.
-
-TODO: Fill in the whole explainer template below using https://tag.w3.org/explainers/ as a
-reference. Look for [brackets].
-
-## Proponents
-
-- [Proponent team 1]
-- [Proponent team 2]
-- [etc.]
-
-## Participate
-- https://github.com/explainers-by-googlers/[your-repository-name]/issues
-- [Discussion forum]
-
-## Table of Contents [if the explainer is longer than one printed page]
-
-<!-- Update this table of contents by running `npx doctoc README.md` -->
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-
-- [Introduction](#introduction)
-- [Goals](#goals)
-- [Non-goals](#non-goals)
-- [User research](#user-research)
-- [Use cases](#use-cases)
-  - [Use case 1](#use-case-1)
-  - [Use case 2](#use-case-2)
-- [[Potential Solution]](#potential-solution)
-  - [How this solution would solve the use cases](#how-this-solution-would-solve-the-use-cases)
-    - [Use case 1](#use-case-1-1)
-    - [Use case 2](#use-case-2-1)
-- [Detailed design discussion](#detailed-design-discussion)
-  - [[Tricky design choice #1]](#tricky-design-choice-1)
-  - [[Tricky design choice 2]](#tricky-design-choice-2)
-- [Considered alternatives](#considered-alternatives)
-  - [[Alternative 1]](#alternative-1)
-  - [[Alternative 2]](#alternative-2)
-- [Security and Privacy Considerations](#security-and-privacy-considerations)
-- [Stakeholder Feedback / Opposition](#stakeholder-feedback--opposition)
-- [References & acknowledgements](#references--acknowledgements)
-
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+This proposal outlines the design and specification extensions required to enable **CSS Scroll Snap** to support **[single-axis scroll containers](https://github.com/explainers-by-googlers/single-axis-scroll-containers)** (`overflow: auto clip` / `overflow: clip auto`).
 
 ## Introduction
 
-[The "executive summary" or "abstract".
-Explain in a few sentences what the goals of the project are,
-and a brief overview of how the solution works.
-This should be no more than 1-2 paragraphs.]
+CSS Overflow 4 introduced **[single-axis scroll containers](https://github.com/explainers-by-googlers/single-axis-scroll-containers)**, allowing elements to establish a scroll container in a single dimension (e.g., `overflow-x: auto; overflow-y: clip;`). While traditional 2D scroll containers (and `overflow: hidden`) establish scrolling contexts across both axes, a single-axis scroll container only establishes a scroll container along its scrollable axis and clips along the other.
+
+CSS Scroll Snap was originally designed around 2D scroll containers, where any scroll container captures all descendant scroll snap areas (`scroll-snap-align`) in both dimensions. With the introduction of single-axis scroll containers, web developers can now compose independent scrollers along orthogonal axes.
+
+This proposal extends CSS Scroll Snap with **per-axis scroll snap area propagation**: a single-axis scroll container consumes snap requirements for its scrollable axis, while snap requirements along the non-scrollable (clipped) axis propagate to ancestor scroll containers.
+
+---
 
 ## Goals
 
-[What is the **end-user need** which this project aims to address? Make this section short, and
-elaborate in the Use cases section.]
+- Extend CSS Scroll Snap to support single-axis scroll containers (`overflow: auto clip` / `overflow: clip auto`).
+- Enable snap areas to be consumed by the single-axis container in its scrollable axis while propagating along the clipped axis to ancestor scroll containers.
+- Align with how `position: sticky` tracks ancestor scroll containers independently per axis in [single-axis scroll containers](https://github.com/explainers-by-googlers/single-axis-scroll-containers).
+- Support resolution of logical snap alignments across varying writing modes between inner and outer containers.
+- Maintain existing behavior for standard 2D scroll containers and containers with `overflow: hidden`.
+
+---
 
 ## Non-goals
 
-[If there are "adjacent" goals which may appear to be in scope but aren't,
-enumerate them here. This section may be fleshed out as your design progresses and you encounter necessary technical and other trade-offs.]
+- Changing the behavior of standard 2D scroll containers or `overflow: hidden` (which remain 2D scroll containers capable of programmatic scrolling in both axes).
+- Introducing new CSS properties or syntax for `scroll-snap-align` or `scroll-snap-type`.
 
-## User research
+---
 
-[If any user research has been conducted to inform your design choices,
-discuss the process and findings. User research should be more common than it is.]
+## Background and Motivation
 
-## Use cases
+The introduction of [single-axis scroll containers](https://github.com/explainers-by-googlers/single-axis-scroll-containers) updated the behavior of sticky positioning (`position: sticky`), allowing sticky elements (such as table headers or sidebars) to track different ancestor scroll containers independently for each axis. For example, a sticky header can stick to a vertical ancestor scroller while freely sliding within an inner horizontal single-axis container.
 
-[Describe in detail what problems end-users are facing, which this project is trying to solve. A
-common mistake in this section is to take a web developer's or server operator's perspective, which
-makes reviewers worry that the proposal will violate [RFC 8890, The Internet is for End
-Users](https://www.rfc-editor.org/rfc/rfc8890).]
+We want to apply a similar per-axis model to **CSS Scroll Snap**. When an element with `scroll-snap-align` resides inside a single-axis scroll container, the container should only consume snap points for its active scrollable axis, allowing snap requirements for the clipped axis to propagate to outer ancestor scroll containers.
 
-### Use case 1
+---
 
-### Use case 2
+## Proposal
 
-<!-- In your initial explainer, you shouldn't be attached or appear attached to any of the potential
-solutions you describe below this. -->
+### Consuming and Propagating Snap Axes
 
-## [Potential Solution]
+- **Axis Consumption**: When an element specifies `scroll-snap-align`, its nearest ancestor scroll container consumes only the snap alignment for the axes along which it can actually scroll.
+- **Axis Propagation**: For any axis where the container does not scroll (i.e. clipped via `overflow: clip`), the snap alignment along that axis remains unconsumed and propagates up the ancestor tree to the next scroll container capable of scrolling that axis.
+- **Scroll Snap Type**: If `scroll-snap-type` on a single-axis container specifies snapping along an unscrollable axis (such as `scroll-snap-type: both` on an `overflow-x: auto; overflow-y: clip;` element), the non-scrollable axis is ignored on that container, allowing descendant snap areas for that axis to propagate.
 
-[For each related element of the proposed solution - be it an additional JS method, a new object, a new element, a new concept etc., create a section which briefly describes it.]
+### Resolving Axes with Writing Mode
 
-```js
-// Provide example code - not IDL - demonstrating the design of the feature.
+Because `scroll-snap-align` specifies logical dimensions (`inline` and `block`), whereas scroll containers operate on physical dimensions ($X$ and $Y$):
 
-// If this API can be used on its own to address a user need,
-// link it back to one of the scenarios in the goals section.
+1. **Initial Resolution**: The logical alignments of a snap area are resolved into physical axes using the [writing mode](https://www.w3.org/TR/css-writing-modes-4/#writing-mode) and text direction of the nearest ancestor scroll container.
+2. **Physical Axis Hand-off**: Any physical snap axis not consumed by the nearest container propagates up the tree as a physical snap requirement. An ancestor scroll container that scrolls along that physical axis captures and applies the snap alignment directly in its physical coordinate space, regardless of differences in writing mode or logical orientation across the scroller hierarchy.
 
-// If you need to show how to get the feature set up
-// (initialized, or using permissions, etc.), include that too.
-```
+---
 
-[Where necessary, provide links to longer explanations of the relevant pre-existing concepts and API.
-If there is no suitable external documentation, you might like to provide supplementary information as an appendix in this document, and provide an internal link where appropriate.]
+## Use Case: Multi-Carousel Feed ([Demo](https://jsfiddle.net/lcdavid94/m4zvnxLo/))
 
-[If this is already specced, link to the relevant section of the spec.]
+A pervasive pattern in media, streaming, and e-commerce websites is a vertical feed containing multiple horizontal carousels (e.g., "Trending Now", "Continue Watching", "Recommended").
 
-[If spec work is in progress, link to the PR or draft of the spec.]
+Authors want:
+1. **Horizontal pagination within each carousel**: Scrolling left/right snaps horizontally to individual item cards (`scroll-snap-type: x mandatory` on each carousel).
+2. **Vertical section snapping on the page**: Scrolling up/down snaps vertically so each carousel section locks flush into the viewport (`scroll-snap-type: y mandatory` on the outer feed).
 
-[If you have more potential solutions in mind, add ## Potential Solution 2, 3, etc. sections.]
+With per-axis scroll snap area propagation:
+- Each horizontal carousel consumes the horizontal snap alignment (`start`) to paginate through its items.
+- The vertical snap alignment (`start`) continues propagating up to the outer feed, enabling the outer page scroller to snap vertically to the top of each carousel section.
 
-### How this solution would solve the use cases
+---
 
-[If there are a suite of interacting APIs, show how they work together to solve the use cases described.]
+## Compatibility
 
-#### Use case 1
+The behavior of existing web pages may change if they currently define `scroll-snap-align` along both axes (e.g., `scroll-snap-align: start`) on descendant elements inside a single-axis scroll container (e.g., `overflow-x: auto; overflow-y: clip;`), and have an ancestor scroll container that scrolls along the clipped axis (`overflow-y: auto`).
 
-[Description of the end-user scenario]
+Previously, the descendant's vertical snap alignment was ignored entirely because the single-axis container captured and dropped it. Under this proposal, that snap area will now propagate to the ancestor vertical scroll container and affect its snap positions.
 
-```js
-// Sample code demonstrating how to use these APIs to address that scenario.
-```
-
-#### Use case 2
-
-[etc.]
-
-## Detailed design discussion
-
-### [Tricky design choice #1]
-
-[Talk through the tradeoffs in coming to the specific design point you want to make.]
-
-```js
-// Illustrated with example code.
-```
-
-[This may be an open question,
-in which case you should link to any active discussion threads.]
-
-### [Tricky design choice 2]
-
-[etc.]
-
-## Considered alternatives
-
-[This should include as many alternatives as you can,
-from high level architectural decisions down to alternative naming choices.]
-
-### [Alternative 1]
-
-[Describe an alternative which was considered,
-and why you decided against it.]
-
-### [Alternative 2]
-
-[etc.]
-
-## Security and Privacy Considerations
-
-[Describe any interesting answers you give to the [Security and Privacy Self-Review
-Questionnaire](https://www.w3.org/TR/security-privacy-questionnaire/) and any interesting ways that
-your feature interacts with [Chromium's Web Platform Security
-Guidelines](https://chromium.googlesource.com/chromium/src/+/master/docs/security/web-platform-security-guidelines.md).]
-
-## Stakeholder Feedback / Opposition
-
-[Implementors and other stakeholders may already have publicly stated positions on this work. If you can, list them here with links to evidence as appropriate.]
-
-- [Implementor A] : Positive
-- [Stakeholder B] : No signals
-- [Implementor C] : Negative
-
-[If appropriate, explain the reasons given by other implementors for their concerns.]
-
-## References & acknowledgements
-
-[Your design will change and be informed by many people; acknowledge them in an ongoing way! It helps build community and, as we only get by through the contributions of many, is only fair.]
-
-[Unless you have a specific reason not to, these should be in alphabetical order.]
-
-Many thanks for valuable feedback and advice from:
-
-- [Person 1]
-- [Person 2]
-- [etc.]
+Although such configurations are generally not quite correct to begin with (authors usually did not intend to declare snap alignments on an axis that is unscrollable without expecting it to participate in scrolling), authors who want to prevent an element from snapping in an ancestor scroller can explicitly set snap alignment to `none` along that axis (e.g., `scroll-snap-align: start none`).
