@@ -70,8 +70,10 @@ With per-axis scroll snap area propagation:
 
 ## Compatibility
 
-The behavior of existing web pages may change if they currently define `scroll-snap-align` along both axes (e.g., `scroll-snap-align: start`) on descendant elements inside a single-axis scroll container (e.g., `overflow-x: auto; overflow-y: clip;`), and have an ancestor scroll container that scrolls along the clipped axis (`overflow-y: auto`).
+Prior to the introduction of [single-axis scroll containers](https://github.com/explainers-by-googlers/single-axis-scroll-containers), pairing a scrollable overflow value with `clip` (such as `overflow-x: auto; overflow-y: clip;`) automatically converted the `clip` value to `hidden`. Because `hidden` establishes a 2D scroll container (which can still be scrolled programmatically), both axes were treated as scrollable contexts, and all snap areas were trapped locally without propagating.
 
-Previously, the descendant's vertical snap alignment was ignored entirely because the single-axis container captured and dropped it. Under this proposal, that snap area will now propagate to the ancestor vertical scroll container and affect its snap positions.
+Therefore, this behavioral change only occurs when **single-axis scroll containers** are supported and enabled (where `clip` is preserved as a non-scrolling, purely clipped axis). On such pages, if an element defines `scroll-snap-align` along both axes (e.g., `scroll-snap-align: start`) inside a single-axis scroller, the snap requirement along the clipped axis will now propagate to the next ancestor scroll container instead of being trapped.
 
-Although such configurations are generally not quite correct to begin with (authors usually did not intend to declare snap alignments on an axis that is unscrollable without expecting it to participate in scrolling), authors who want to prevent an element from snapping in an ancestor scroller can explicitly set snap alignment to `none` along that axis (e.g., `scroll-snap-align: start none`).
+Although such configurations are generally not quite correct to begin with (authors usually did not intend to declare snap alignments on an axis that is unscrollable without expecting it to participate in scrolling):
+- Authors who want to prevent an element from snapping in an ancestor scroller can explicitly set snap alignment to `none` along that axis (e.g., `scroll-snap-align: start none`).
+- Alternatively, authors can change the clipped axis overflow to `hidden` (e.g., `overflow-x: auto; overflow-y: hidden;`) to preserve the exact trapping behavior from before single-axis scroll containers.
